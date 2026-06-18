@@ -7,7 +7,7 @@ import DashboardPage from './pages/DashboardPage.jsx';
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
-  if (loading) return <div className="spinner" />;
+  if (loading) return <div className="spinner" style={{ marginTop: '6rem' }} />;
   if (!user) return <Navigate to="/auth" replace />;
   return children;
 }
@@ -17,8 +17,15 @@ export default function App() {
     <>
       <Navbar />
       <Routes>
-        <Route path="/" element={<MarketplacePage />} />
         <Route path="/auth" element={<AuthPage />} />
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <MarketplacePage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/dashboard"
           element={
