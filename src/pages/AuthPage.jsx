@@ -5,6 +5,7 @@ import { RiStore2Fill, RiGamepadLine } from 'react-icons/ri';
 import { BsShieldCheck, BsLightningFill } from 'react-icons/bs';
 import client from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import Twemoji from '../components/Twemoji.jsx';
 
 const PERKS = [
   { icon: <RiGamepadLine size={18} />, text: 'Premium gaming accounts' },
@@ -133,7 +134,7 @@ export default function AuthPage() {
               fontWeight: 800, fontSize: '1.35rem',
               letterSpacing: '-0.03em', marginBottom: '0.35rem',
             }}>
-              {mode === 'login' ? 'Welcome back 👋' : 'Join Blaq Store'}
+              <Twemoji text={mode === 'login' ? 'Welcome back 👋' : 'Join Blaq Store 🎮'} />
             </h3>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
               {mode === 'login'
