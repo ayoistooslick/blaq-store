@@ -1,7 +1,8 @@
-import { useState } from 'react';
-import { FiMessageCircle, FiTag, FiEdit2, FiTrash2, FiCheckCircle, FiMaximize2 } from 'react-icons/fi';
+import { useState, useRef } from 'react';
+import { FiMessageCircle, FiTag, FiEdit2, FiTrash2, FiCheckCircle, FiMaximize2, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 import { BsController } from 'react-icons/bs';
 import ImageLightbox from './ImageLightbox.jsx';
+import Twemoji from './Twemoji.jsx';
 
 const GAME_COLORS = {
   'Free Fire': '#ff6b35',
@@ -9,16 +10,54 @@ const GAME_COLORS = {
   'Other': '#a78bfa',
 };
 
+const DESC_LIMIT = 120;
+
+function ExpandableDesc({ text }) {
+  const [expanded, setExpanded] = useState(false);
+  if (!text) return null;
+  const isLong = text.length > DESC_LIMIT;
+  const shown = expanded || !isLong ? text : text.slice(0, DESC_LIMIT).trimEnd() + '…';
+  return (
+    <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.6, flex: 1 }}>
+      <Twemoji text={shown} />
+      {isLong && (
+        <button
+          onClick={(e) => { e.stopPropagation(); setExpanded(v => !v); }}
+          style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: 'var(--accent)', fontWeight: 700, fontSize: '0.78rem',
+            padding: '0 0 0 0.3rem', display: 'inline',
+          }}
+        >
+          {expanded ? ' See less' : ' See more'}
+        </button>
+      )}
+    </p>
+  );
+}
+
 export default function AccountCard({ listing, sellerMode = false, onMarkSold, onEdit, onDelete }) {
   const { gameType, title, description, price, images, seller, status } = listing;
   const isSold = status === 'sold';
   const accentColor = GAME_COLORS[gameType] || 'var(--accent)';
+
   const [imgError, setImgError] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
-  const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [currentImg, setCurrentImg] = useState(0);
   const [imgHover, setImgHover] = useState(false);
+  const touchStartX = useRef(null);
 
   const hasImages = images && images.length > 0 && !imgError;
+  const total = hasImages ? images.length : 0;
+
+  const goNext = (e) => {
+    e.stopPropagation();
+    setCurrentImg(i => (i + 1) % total);
+  };
+  const goPrev = (e) => {
+    e.stopPropagation();
+    setCurrentImg(i => (i - 1 + total) % total);
+  };
 
   const handleContact = () => {
     if (!seller?.phoneNumber) return;
@@ -29,11 +68,23 @@ export default function AccountCard({ listing, sellerMode = false, onMarkSold, o
     window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
   };
 
-  const openLightbox = (e) => {
-    e.stopPropagation();
+  const openLightbox = () => {
     if (!hasImages) return;
-    setLightboxIndex(0);
     setLightboxOpen(true);
+  };
+
+  const handleTouchStart = (e) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+  const handleTouchEnd = (e) => {
+    if (touchStartX.current === null || total <= 1) return;
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    if (Math.abs(dx) > 40) {
+      dx < 0
+        ? setCurrentImg(i => (i + 1) % total)
+        : setCurrentImg(i => (i - 1 + total) % total);
+    }
+    touchStartX.current = null;
   };
 
   return (
@@ -66,37 +117,46 @@ export default function AccountCard({ listing, sellerMode = false, onMarkSold, o
           </div>
         )}
 
+        {/* Image section */}
         <div
           style={{
-            height: 180,
+            height: 190,
             background: 'var(--bg-elevated)',
             position: 'relative',
             overflow: 'hidden',
             flexShrink: 0,
             cursor: hasImages ? 'zoom-in' : 'default',
+            userSelect: 'none',
           }}
           onMouseEnter={() => setImgHover(true)}
           onMouseLeave={() => setImgHover(false)}
           onClick={openLightbox}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
         >
           {hasImages ? (
             <>
               <img
-                src={images[0]}
+                key={currentImg}
+                src={images[currentImg]}
                 alt={title}
                 onError={() => setImgError(true)}
                 style={{
                   width: '100%', height: '100%', objectFit: 'cover',
-                  transition: 'transform 0.35s ease',
+                  transition: 'transform 0.35s ease, opacity 0.2s ease',
                   transform: imgHover ? 'scale(1.04)' : 'scale(1)',
                 }}
               />
+
+              {/* Dark overlay on hover */}
               <div style={{
                 position: 'absolute', inset: 0,
-                background: 'rgba(0,0,0,0)',
+                background: imgHover ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0)',
                 transition: 'background 0.25s',
-                ...(imgHover ? { background: 'rgba(0,0,0,0.28)' } : {}),
+                pointerEvents: 'none',
               }} />
+
+              {/* Expand hint on hover */}
               {imgHover && (
                 <div style={{
                   position: 'absolute', inset: 0,
@@ -108,25 +168,70 @@ export default function AccountCard({ listing, sellerMode = false, onMarkSold, o
                     backdropFilter: 'blur(4px)',
                     border: '1px solid rgba(255,255,255,0.12)',
                     borderRadius: 10,
-                    padding: '0.5rem 0.85rem',
+                    padding: '0.45rem 0.8rem',
                     display: 'flex', alignItems: 'center', gap: '0.4rem',
-                    color: '#fff', fontSize: '0.78rem', fontWeight: 600,
+                    color: '#fff', fontSize: '0.75rem', fontWeight: 600,
                   }}>
-                    <FiMaximize2 size={13} />
-                    View full image
+                    <FiMaximize2 size={12} /> View full
                   </div>
                 </div>
               )}
-              {images.length > 1 && (
+
+              {/* Prev / Next arrows for multi-image */}
+              {total > 1 && imgHover && (
+                <>
+                  <button
+                    onClick={goPrev}
+                    style={{
+                      position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)',
+                      zIndex: 3,
+                      background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
+                      border: '1px solid rgba(255,255,255,0.15)',
+                      borderRadius: '50%', width: 32, height: 32,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      cursor: 'pointer', color: '#fff',
+                    }}
+                  >
+                    <FiChevronLeft size={16} />
+                  </button>
+                  <button
+                    onClick={goNext}
+                    style={{
+                      position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+                      zIndex: 3,
+                      background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
+                      border: '1px solid rgba(255,255,255,0.15)',
+                      borderRadius: '50%', width: 32, height: 32,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      cursor: 'pointer', color: '#fff',
+                    }}
+                  >
+                    <FiChevronRight size={16} />
+                  </button>
+                </>
+              )}
+
+              {/* Dot indicators */}
+              {total > 1 && (
                 <div style={{
-                  position: 'absolute', bottom: 8, right: 8,
-                  background: 'rgba(0,0,0,0.65)',
-                  borderRadius: 999,
-                  padding: '0.15rem 0.5rem',
-                  fontSize: '0.68rem', fontWeight: 700, color: 'rgba(255,255,255,0.85)',
-                  letterSpacing: '0.04em',
+                  position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)',
+                  display: 'flex', gap: '0.3rem', alignItems: 'center',
+                  zIndex: 3,
                 }}>
-                  1 / {images.length}
+                  {images.map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={(e) => { e.stopPropagation(); setCurrentImg(i); }}
+                      style={{
+                        width: i === currentImg ? 16 : 6,
+                        height: 6, borderRadius: 999,
+                        background: i === currentImg ? 'var(--accent)' : 'rgba(255,255,255,0.45)',
+                        border: 'none', padding: 0, cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        boxShadow: i === currentImg ? '0 0 6px rgba(245,197,24,0.6)' : 'none',
+                      }}
+                    />
+                  ))}
                 </div>
               )}
             </>
@@ -142,25 +247,27 @@ export default function AccountCard({ listing, sellerMode = false, onMarkSold, o
             </div>
           )}
 
+          {/* Game type badge */}
           <div style={{
             position: 'absolute', top: 10, left: 10,
-            background: 'rgba(0,0,0,0.75)',
+            background: 'rgba(0,0,0,0.78)',
             backdropFilter: 'blur(6px)',
             border: `1px solid ${accentColor}44`,
             color: accentColor,
             padding: '0.2rem 0.6rem',
             borderRadius: 999,
-            fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.05em',
+            fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.05em',
+            zIndex: 2,
           }}>
             {gameType}
           </div>
 
+          {/* Seller mode action buttons */}
           {sellerMode && (
-            <div style={{
-              position: 'absolute', top: 10, right: 10,
-              display: 'flex', gap: '0.3rem',
-            }}
-            onClick={e => e.stopPropagation()}>
+            <div
+              style={{ position: 'absolute', top: 10, right: 10, display: 'flex', gap: '0.3rem', zIndex: 4 }}
+              onClick={e => e.stopPropagation()}
+            >
               <button
                 onClick={() => onEdit && onEdit(listing)}
                 title="Edit listing"
@@ -171,7 +278,7 @@ export default function AccountCard({ listing, sellerMode = false, onMarkSold, o
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   transition: 'background 0.2s',
                 }}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,197,24,0.2)'}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,197,24,0.25)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,0,0,0.75)'}
               >
                 <FiEdit2 size={13} />
@@ -186,7 +293,7 @@ export default function AccountCard({ listing, sellerMode = false, onMarkSold, o
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   transition: 'background 0.2s',
                 }}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(231,76,60,0.2)'}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(231,76,60,0.25)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,0,0,0.75)'}
               >
                 <FiTrash2 size={13} />
@@ -195,18 +302,13 @@ export default function AccountCard({ listing, sellerMode = false, onMarkSold, o
           )}
         </div>
 
+        {/* Card body */}
         <div style={{ padding: '1rem 1.1rem', flex: 1, display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
           <h3 style={{ fontWeight: 700, fontSize: '0.97rem', lineHeight: 1.3, color: 'var(--text-primary)' }}>
-            {title}
+            <Twemoji text={title} />
           </h3>
-          <p style={{
-            fontSize: '0.82rem', color: 'var(--text-secondary)',
-            lineHeight: 1.55, flex: 1,
-            display: '-webkit-box', WebkitLineClamp: 3,
-            WebkitBoxOrient: 'vertical', overflow: 'hidden',
-          }}>
-            {description}
-          </p>
+
+          <ExpandableDesc text={description} />
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.15rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
@@ -220,8 +322,12 @@ export default function AccountCard({ listing, sellerMode = false, onMarkSold, o
 
           {seller && !sellerMode && (
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <FiMessageCircle size={11} />
-              Seller: {seller.name}
+              {seller.avatar ? (
+                <img src={seller.avatar} alt={seller.name} style={{ width: 16, height: 16, borderRadius: '50%', objectFit: 'cover' }} />
+              ) : (
+                <FiMessageCircle size={11} />
+              )}
+              <Twemoji text={`Seller: ${seller.name}`} />
             </div>
           )}
 
@@ -264,8 +370,8 @@ export default function AccountCard({ listing, sellerMode = false, onMarkSold, o
       {lightboxOpen && hasImages && (
         <ImageLightbox
           images={images}
-          currentIndex={lightboxIndex}
-          onChangeIndex={setLightboxIndex}
+          currentIndex={currentImg}
+          onChangeIndex={setCurrentImg}
           onClose={() => setLightboxOpen(false)}
         />
       )}

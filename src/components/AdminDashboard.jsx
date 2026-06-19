@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   FiUser, FiPhone, FiCheckCircle, FiRefreshCw, FiShield,
-  FiUsers, FiActivity, FiMail, FiCalendar, FiXCircle,
+  FiUsers, FiActivity, FiMail, FiCalendar, FiXCircle, FiUserMinus,
 } from 'react-icons/fi';
 import { RiAdminLine, RiUserStarLine } from 'react-icons/ri';
 import { BsPersonBadge } from 'react-icons/bs';
@@ -64,6 +64,8 @@ export default function AdminDashboard() {
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [error, setError] = useState('');
   const [approving, setApproving] = useState({});
+  const [revoking, setRevoking] = useState({});
+  const [revokeConfirm, setRevokeConfirm] = useState(null);
   const [usersFetched, setUsersFetched] = useState(false);
   const [userSearch, setUserSearch] = useState('');
 
@@ -114,6 +116,22 @@ export default function AdminDashboard() {
       alert(err.response?.data?.message || `Failed to ${action} seller.`);
     } finally {
       setApproving(prev => ({ ...prev, [id]: null }));
+    }
+  };
+
+  const handleRevokeSeller = async (id) => {
+    setRevoking(prev => ({ ...prev, [id]: true }));
+    try {
+      await client.put(`/admin/revoke-seller/${id}`);
+      setAllUsers(prev => prev.map(u => u._id === id
+        ? { ...u, role: 'buyer', sellerRequestStatus: 'rejected' }
+        : u
+      ));
+      setRevokeConfirm(null);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to revoke seller.');
+    } finally {
+      setRevoking(prev => ({ ...prev, [id]: false }));
     }
   };
 
@@ -350,22 +368,109 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
-                  {u.sellerRequestStatus && u.sellerRequestStatus !== 'none' && (
-                    <span className={`badge ${u.sellerRequestStatus === 'approved' ? 'badge-green' : u.sellerRequestStatus === 'pending' ? 'badge-yellow' : 'badge-red'}`}>
-                      {u.sellerRequestStatus}
-                    </span>
-                  )}
-
-                  {u.createdAt && (
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.25rem', flexShrink: 0 }}>
-                      <FiCalendar size={11} />
-                      {new Date(u.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                    </div>
-                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexShrink: 0, flexWrap: 'wrap' }}>
+                    {u.createdAt && (
+                      <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                        <FiCalendar size={11} />
+                        {new Date(u.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </div>
+                    )}
+                    {u.role === 'seller' && (
+                      <button
+                        onClick={() => setRevokeConfirm(u)}
+                        disabled={revoking[u._id]}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '0.35rem',
+                          padding: '0.38rem 0.75rem',
+                          background: 'rgba(231,76,60,0.08)',
+                          border: '1px solid rgba(231,76,60,0.3)',
+                          borderRadius: 8,
+                          color: 'var(--danger)',
+                          fontSize: '0.75rem', fontWeight: 700,
+                          cursor: 'pointer', transition: 'all 0.15s',
+                          whiteSpace: 'nowrap',
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(231,76,60,0.18)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'rgba(231,76,60,0.08)'}
+                      >
+                        <FiUserMinus size={13} />
+                        Revoke
+                      </button>
+                    )}
+                    {u.sellerRequestStatus && u.sellerRequestStatus !== 'none' && (
+                      <span className={`badge ${u.sellerRequestStatus === 'approved' ? 'badge-green' : u.sellerRequestStatus === 'pending' ? 'badge-yellow' : 'badge-red'}`}>
+                        {u.sellerRequestStatus}
+                      </span>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {revokeConfirm && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 600,
+            background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(6px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem',
+          }}
+          onClick={(e) => { if (e.target === e.currentTarget && !revoking[revokeConfirm._id]) setRevokeConfirm(null); }}
+        >
+          <div style={{
+            background: 'var(--bg-card)',
+            border: '1px solid rgba(231,76,60,0.3)',
+            borderRadius: 20,
+            padding: '2rem',
+            width: '100%', maxWidth: 400,
+            boxShadow: '0 16px 60px rgba(0,0,0,0.7)',
+          }}>
+            <div style={{
+              width: 52, height: 52, borderRadius: '50%',
+              background: 'rgba(231,76,60,0.12)',
+              border: '1px solid rgba(231,76,60,0.3)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              marginBottom: '1.25rem',
+            }}>
+              <FiUserMinus size={22} color="var(--danger)" />
+            </div>
+            <h3 style={{ fontWeight: 800, fontSize: '1.05rem', marginBottom: '0.5rem' }}>Revoke Seller Access</h3>
+            <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: '0.6rem' }}>
+              You're about to demote <strong style={{ color: 'var(--text-primary)' }}>{revokeConfirm.name}</strong> from Seller to Buyer.
+            </p>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '1.75rem' }}>
+              Their listings will remain but they will lose the ability to add new ones. This action can be reversed by re-approving a seller application.
+            </p>
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              <button
+                onClick={() => setRevokeConfirm(null)}
+                disabled={revoking[revokeConfirm._id]}
+                className="btn-ghost"
+                style={{ flex: 1, padding: '0.75rem' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleRevokeSeller(revokeConfirm._id)}
+                disabled={revoking[revokeConfirm._id]}
+                style={{
+                  flex: 2, padding: '0.75rem',
+                  background: 'var(--danger)', color: '#fff',
+                  border: 'none', borderRadius: 'var(--radius)',
+                  fontWeight: 700, fontSize: '0.875rem',
+                  cursor: 'pointer', display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', gap: '0.45rem',
+                  opacity: revoking[revokeConfirm._id] ? 0.6 : 1,
+                  transition: 'opacity 0.2s',
+                }}
+              >
+                <FiUserMinus size={15} />
+                {revoking[revokeConfirm._id] ? 'Revoking...' : 'Yes, Revoke Seller'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
