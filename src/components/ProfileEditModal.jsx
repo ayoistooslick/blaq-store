@@ -41,30 +41,43 @@ export default function ProfileEditModal({ onClose }) {
     setLoading(true);
     setError('');
     setSuccess('');
-    try {
-      let newAvatar = user.avatar || '';
 
-      if (avatarFile) {
-        setAvatarUploading(true);
+    let newAvatar = user.avatar || '';
+    let avatarErr = '';
+
+    // Step 1: upload avatar (if a new file was picked)
+    if (avatarFile) {
+      setAvatarUploading(true);
+      try {
         const fd = new FormData();
         fd.append('avatar', avatarFile);
-        try {
-          const avatarRes = await client.post('/auth/avatar', fd, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-          });
-          newAvatar = avatarRes.data.avatar;
-        } catch {
-          setError('Profile picture upload failed — profile info was still saved.');
-        }
-        setAvatarUploading(false);
+        const avatarRes = await client.post('/auth/avatar', fd, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        newAvatar = avatarRes.data.avatar;
+      } catch (err) {
+        avatarErr = err.response?.data?.error || err.response?.data?.message || 'Photo upload failed.';
       }
+      setAvatarUploading(false);
+    }
 
-      const res = await client.put('/auth/profile', form);
+    // Step 2: save profile info
+    try {
+      const payload = { name: form.name, email: form.email };
+      if (form.phoneNumber.trim()) payload.phoneNumber = form.phoneNumber.trim();
+
+      const res = await client.put('/auth/profile', payload);
       updateUser({ ...user, ...res.data, avatar: newAvatar });
-      setSuccess('Profile updated!');
-      setTimeout(() => onClose(), 1100);
+
+      if (avatarErr) {
+        setError(`Profile saved, but photo upload failed: ${avatarErr}`);
+      } else {
+        setSuccess('Profile updated!');
+        setTimeout(() => onClose(), 1100);
+      }
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to update profile.');
+      const msg = err.response?.data?.message || err.response?.data?.error || 'Failed to save profile.';
+      setError(avatarErr ? `Photo: ${avatarErr} · Profile: ${msg}` : msg);
     } finally {
       setLoading(false);
       setAvatarUploading(false);
